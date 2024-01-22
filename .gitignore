@@ -1,0 +1,4 @@
+
+checkpoints/depth_anything_vitb14.pth
+checkpoints/depth_anything_vitl14.pth
+checkpoints/depth_anything_vits14.pth
