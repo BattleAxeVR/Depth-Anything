@@ -10,6 +10,7 @@
 <a href="https://arxiv.org/abs/2401.10891"><img src='https://img.shields.io/badge/arXiv-Depth Anything-red' alt='Paper PDF'></a>
 <a href='https://depth-anything.github.io'><img src='https://img.shields.io/badge/Project_Page-Depth Anything-green' alt='Project Page'></a>
 <a href='https://huggingface.co/spaces/LiheYoung/Depth-Anything'><img src='https://img.shields.io/badge/%F0%9F%A4%97%20Hugging%20Face-Spaces-blue'></a>
+<a href='https://huggingface.co/papers/2401.10891'><img src='https://img.shields.io/badge/%F0%9F%A4%97%20Hugging%20Face-Paper-yellow'></a>
 </div>
 
 This work presents Depth Anything, a highly practical solution for robust monocular depth estimation by training on a combination of 1.5M labeled images and **62M+ unlabeled images**.
@@ -18,7 +19,10 @@ This work presents Depth Anything, a highly practical solution for robust monocu
 
 ## News
 
-* **2024-01-22:** Paper, project page, code, models, and demo are released.
+* **2024-01-25:** Support [video depth visualization](./run_video.py).
+* **2024-01-23:** The new ControlNet based on Depth Anything is integrated into [ControlNet WebUI](https://github.com/Mikubill/sd-webui-controlnet) and [ComfyUI's ControlNet](https://github.com/Fannovel16/comfyui_controlnet_aux).
+* **2024-01-23:** Depth Anything [ONNX](https://github.com/fabio-sim/Depth-Anything-ONNX) and [TensorRT](https://github.com/spacewalk01/depth-anything-tensorrt) versions are supported.
+* **2024-01-22:** Paper, project page, code, models, and demo ([HuggingFace](https://huggingface.co/spaces/LiheYoung/Depth-Anything), [OpenXLab](https://openxlab.org.cn/apps/detail/yyfan/depth_anything)) are released.
 
 
 ## Features of Depth Anything
@@ -34,7 +38,7 @@ This work presents Depth Anything, a highly practical solution for robust monocu
 
 - **Better depth-conditioned ControlNet**
 
-    We re-train **a better depth-conditioned ControlNet** based on Depth Anything. It offers more precise synthesis than the previous MiDaS-based ControlNet. Please refer [here](./controlnet/) for details.
+    We re-train **a better depth-conditioned ControlNet** based on Depth Anything. It offers more precise synthesis than the previous MiDaS-based ControlNet. Please refer [here](./controlnet/) for details. You can also use our new ControlNet based on Depth Anything in [ControlNet WebUI](https://github.com/Mikubill/sd-webui-controlnet) or [ComfyUI's ControlNet](https://github.com/Fannovel16/comfyui_controlnet_aux).
 
 - **Downstream high-level scene understanding**
 
@@ -59,21 +63,47 @@ We highlight the **best** and *second best* results in **bold** and *italic* res
 
 ## Pre-trained models
 
-We provide three models of varying scales for robust relatve depth estimation:
+We provide three models of varying scales for robust relative depth estimation:
 
-- Depth-Anything-ViT-Small (24.8M)
+| Model | Params | Inference Time on V100 (ms) | A100 | RTX4090 ([TensorRT](https://github.com/spacewalk01/depth-anything-tensorrt)) |
+|:-|-:|:-:|:-:|:-:|
+| Depth-Anything-Small | 24.8M | 12 | 8 | 3 |
+| Depth-Anything-Base | 97.5M | 13 | 9 | 6 |
+| Depth-Anything-Large | 335.3M | 20 | 13 | 12 |
 
-- Depth-Anything-ViT-Base (97.5M)
+Note that the V100 and A100 inference time (*without TensorRT*) is computed by excluding the pre-processing and post-processing stages, whereas the last column RTX4090 (*with TensorRT*) is computed by including these two stages (please refer to [Depth-Anything-TensorRT](https://github.com/spacewalk01/depth-anything-tensorrt)).
 
-- Depth-Anything-ViT-Large (335.3M)
+You can easily load our pre-trained models by:
+```python
+from depth_anything.dpt import DepthAnything
 
-Download our pre-trained models [here](https://huggingface.co/spaces/LiheYoung/Depth-Anything/tree/main/checkpoints), and put them under the ``checkpoints`` directory.
+encoder = 'vits' # can also be 'vitb' or 'vitl'
+depth_anything = DepthAnything.from_pretrained('LiheYoung/depth_anything_{:}14'.format(encoder))
+```
+
+Depth Anything is also supported in ``transformers``. You can use it for depth prediction within [3 lines of code](https://huggingface.co/docs/transformers/main/model_doc/depth_anything) (credit to [@niels](https://huggingface.co/nielsr)).
+
+### No network connection, cannot load these models?
+
+<details>
+<summary>Click here for solutions</summary>
+
+- First, please manually download our models (both config and checkpoints files) from here: [depth-anything-small](https://huggingface.co/LiheYoung/depth_anything_vits14), [depth-anything-base](https://huggingface.co/LiheYoung/depth_anything_vitb14), and [depth-anything-large](https://huggingface.co/LiheYoung/depth_anything_vitl14).
+
+- Second, upload the folder which contains config and checkpoint files to your remote server.
+
+- Lastly, load the model locally by:
+```python
+# suppose the config and checkpoint files are stored under the folder checkpoints/depth_anything_vitb14
+depth_anything = DepthAnything.from_pretrained('checkpoints/depth_anything_vitb14', local_files_only=True)
+```
+
+</details>
+
 
 ## Usage 
 
 ### Installation
-
-The setup is very simple. Just make ensure ``torch``, ``torchvision``, and ``cv2`` are supported in your environment.
 
 ```bash
 git clone https://github.com/LiheYoung/Depth-Anything
@@ -84,17 +114,21 @@ pip install -r requirements.txt
 ### Running
 
 ```bash
-python run.py --encoder <vits | vitb | vitl> --load-from <pretrained-model> --img-path <img-directory | single-img | txt-file> --outdir <outdir> --localhub
+python run.py --encoder <vits | vitb | vitl> --img-path <img-directory | single-img | txt-file> --outdir <outdir>
 ```
 For the ``img-path``, you can either 1) point it to an image directory storing all interested images, 2) point it to a single image, or 3) point it to a text file storing all image paths.
 
 For example:
 ```bash
-python run.py --encoder vitl --load-from checkpoints/depth_anything_vitl14.pth --img-path demo_images --outdir depth_visualization --localhub
+python run.py --encoder vitl --img-path assets/examples --outdir depth_vis
 ```
 
+**If you want to use Depth Anything on videos:**
+```bash
+python run_video.py --encoder vitl --video-path assets/examples_video --outdir video_depth_vis
+```
 
-### Gradio demo
+### Gradio demo <a href='https://github.com/gradio-app/gradio'><img src='https://img.shields.io/github/stars/gradio-app/gradio'></a> 
 
 To use our gradio demo locally:
 
@@ -112,14 +146,14 @@ If you want to use Depth Anything in your own project, you can simply follow [``
 <summary>Code snippet (note the difference between our data pre-processing and that of MiDaS)</summary>
 
 ```python
-from depth_anything.dpt import DPT_DINOv2
+from depth_anything.dpt import DepthAnything
 from depth_anything.util.transform import Resize, NormalizeImage, PrepareForNet
 
 import cv2
 import torch
 
-depth_anything = DPT_DINOv2(encoder='vitl', features=256, out_channels=[256, 512, 1024, 1024], localhub=True)
-depth_anything.load_state_dict(torch.load('checkpoints/depth_anything_vitl14.pth'))
+encoder = 'vits' # can also be 'vitb' or 'vitl'
+depth_anything = DepthAnything.from_pretrained('LiheYoung/depth_anything_{:}14'.format(encoder)).eval()
 
 transform = Compose([
     Resize(
@@ -144,6 +178,45 @@ depth = depth_anything(image)
 ```
 </details>
 
+### Do not want to define image pre-processing or download model definition files?
+
+Easily use Depth Anything through ``transformers`` within 3 lines of code! Please refer to [these instructions](https://huggingface.co/docs/transformers/main/model_doc/depth_anything) (credit to [@niels](https://huggingface.co/nielsr)).
+
+<details>
+<summary>Click here for a brief demo:</summary>
+
+```python
+from transformers import pipeline
+from PIL import Image
+
+image = Image.open('Your-image-path')
+pipe = pipeline(task="depth-estimation", model="LiheYoung/depth-anything-small-hf")
+depth = pipe(image)["depth"]
+```
+</details>
+
+## Community Support
+
+**We sincerely appreciate all the extentions built on our Depth Anything from the community. Thank you a lot!**
+
+Here we list the extensions we have found:
+- Depth Anything ONNX: https://github.com/fabio-sim/Depth-Anything-ONNX
+- Depth Anything TensorRT: https://github.com/spacewalk01/depth-anything-tensorrt
+- Depth Anything in ControlNet WebUI: https://github.com/Mikubill/sd-webui-controlnet
+- Depth Anything in ComfyUI's ControlNet: https://github.com/Fannovel16/comfyui_controlnet_aux
+- Depth Anything in X-AnyLabeling: https://github.com/CVHub520/X-AnyLabeling
+- Depth Anything in OpenXLab: https://openxlab.org.cn/apps/detail/yyfan/depth_anything
+- Depth Anything in Transformers.js: https://huggingface.co/spaces/Xenova/depth-anything-web
+- Depth Anything in OpenVINO: https://github.com/openvinotoolkit/openvino_notebooks/tree/main/notebooks/280-depth-anything
+
+If you have your amazing projects supporting or improving (*e.g.*, speed) Depth Anything, please feel free to drop an issue. We will add them here.
+
+
+## Acknowledgement
+
+We would like to express our deepest gratitude to [AK(@_akhaliq)](https://twitter.com/_akhaliq) and the awesome HuggingFace team ([@niels](https://huggingface.co/nielsr), [@hysts](https://huggingface.co/hysts), and [@yuvraj](https://huggingface.co/ysharma)) for helping improve the online demo and build the HF models.
+
+Besides, we thank the [MagicEdit](https://magic-edit.github.io/) team for providing some video examples for video depth estimation, and [Tiancheng Shen](https://scholar.google.com/citations?user=iRY1YVoAAAAJ) for evaluating the depth maps with MagicEdit.
 
 ## Citation
 
